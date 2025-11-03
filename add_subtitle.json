@@ -1,0 +1,181 @@
+{
+  "name": "Add subtitle",
+  "nodes": [
+    {
+      "parameters": {
+        "resource": "speech",
+        "operation": "speechToText",
+        "additionalOptions": {},
+        "requestOptions": {}
+      },
+      "type": "@elevenlabs/n8n-nodes-elevenlabs.elevenLabs",
+      "typeVersion": 1,
+      "position": [
+        -256,
+        -288
+      ],
+      "id": "dd721a7f-9967-495e-b270-0d2d56b05444",
+      "name": "Transcribe audio or video",
+      "retryOnFail": false,
+      "credentials": {
+        "elevenLabsApi": {
+          "id": "axB51Dxp7JRCv1uP",
+          "name": "ElevenLabs account ebaycanstore@gmail.com"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fileSelector": "=/tmp/audio.mp3",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        -432,
+        -288
+      ],
+      "id": "69f956d2-4912-46d5-b2ac-87883ff65220",
+      "name": "Get Audio File"
+    },
+    {
+      "parameters": {
+        "command": "=rm -f /tmp/final_video.mp4 &&\nffmpeg -i /tmp/shorts/raw_video.mp4 -vf \"ass=/tmp/shorts/subtitle.ass\" -c:a copy /tmp/final_video1.mp4"
+      },
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        288,
+        -288
+      ],
+      "id": "86bb8a73-ac43-4c6a-ae00-ea11712185f8",
+      "name": "Execute Command1",
+      "retryOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const words = $json[\"words\"].filter(w => w.type === \"word\" && w.text.trim() !== \"\");\nconst blockSize = 4; // Her blokta kaç kelime olacağı\n\n// --- PARLAKLIK VURGULU STİL TANIMLAMASI ---\n// PrimaryColour: &H80FFFFFF -> Okunmamış metnin rengi. %50 şeffaf beyaz (soluk görünür).\n// SecondaryColour: &H00FFFFFF -> Karaoke rengi. Okunan metnin dönüşeceği renk (parlak, opak beyaz).\n// OutlineColour: &H80000000 -> Metnin okunabilirliğini artırmak için %50 şeffaf siyah dış çizgi.\n// BorderStyle: 1 -> Arka plan kutusu yok, sadece dış çizgi var.\n// Style: HighlightStyle,Arial,60,&H80FFFFFF,&H00FFFFFF,&H80000000,&H00000000,-1,0,0,0,100,100,0,0,1,2,1,2,10,10,40,1\n\n\nlet ass = [\n    `[Script Info]\nTitle: Highlight Karaoke Subtitles\nScriptType: v4.00+\nPlayResX: 1920\nPlayResY: 1080\nWrapStyle: 0\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: HighlightStyle,Arial,30,&H00FCF700,&H00FFFFFF,&H80000000,&H00000000,-1,0,0,0,100,100,0,0,1,2,1,2,10,10,180,1\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text`\n];\n\n// ASS için H:MM:SS.cs formatı\nconst formatTime = (t) => {\n    const hrs = Math.floor(t / 3600).toString().padStart(1, '0');\n    const mins = Math.floor((t % 3600) / 60).toString().padStart(2, '0');\n    const secs = Math.floor(t % 60).toString().padStart(2, '0');\n    const cs = Math.floor((t % 1) * 100).toString().padStart(2, '0');\n    return `${hrs}:${mins}:${secs}.${cs}`;\n};\n\n// Kelime bloklarını işle\nfor (let i = 0; i < words.length; i += blockSize) {\n    const block = words.slice(i, i + blockSize);\n    if (block.length === 0) continue;\n\n    const blockStartTime = block[0].start;\n    const blockEndTime = block[block.length - 1].end;\n\n    let dialogueText = \"\";\n\n    // Her kelime için karaoke (\\k) etiketi oluştur\n    block.forEach(word => {\n        // Her kelimenin süresini centisaniye (saniyenin yüzde biri) cinsinden hesapla\n        const duration = Math.round((word.end - word.start) * 100);\n        \n        // \\k etiketi, metni PrimaryColour'dan SecondaryColour'a doğru, belirtilen süre boyunca boyar.\n        // Yani soluk beyazdan parlak beyaza geçirir.\n        dialogueText += `{\\\\k${duration}}${word.text} `;\n    });\n\n    const line = `Dialogue: 0,${formatTime(blockStartTime)},${formatTime(blockEndTime)},HighlightStyle,,0,0,0,,${dialogueText.trim()}`;\n    ass.push(line);\n}\n\nreturn [{\n    json: {},\n    binary: {\n        file: {\n            data: Buffer.from(ass.join(\"\\n\"), 'utf-8'),\n            fileName: 'subtitles.ass',\n            mimeType: 'text/plain'\n        }\n    }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -80,
+        -288
+      ],
+      "id": "a3533af3-a0f4-4c6e-b5a0-6e096004522a",
+      "name": "Create subtitles"
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "/tmp/subtitle.ass",
+        "dataPropertyName": "file",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        112,
+        -288
+      ],
+      "id": "3097598f-6a0f-460e-9bde-93c2752765e2",
+      "name": "Save Subtitle"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -624,
+        -288
+      ],
+      "id": "84d4f5db-587b-4987-b32d-4581ecdc62ab",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "content": "",
+        "height": 272,
+        "width": 1408,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -784,
+        -352
+      ],
+      "id": "12c125e1-9a68-4877-be1a-a55999d359f2",
+      "name": "Sticky Note"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Transcribe audio or video": {
+      "main": [
+        [
+          {
+            "node": "Create subtitles",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Audio File": {
+      "main": [
+        [
+          {
+            "node": "Transcribe audio or video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create subtitles": {
+      "main": [
+        [
+          {
+            "node": "Save Subtitle",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Subtitle": {
+      "main": [
+        [
+          {
+            "node": "Execute Command1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Get Audio File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "efe4f237-5df1-4157-8248-93a14bc5eb1d",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "76026704c02a7b00ffabacc5fd3407322c549002542add0fa55167d77afba85c"
+  },
+  "id": "fzjqScy7XpYdBM9E",
+  "tags": []
+}
